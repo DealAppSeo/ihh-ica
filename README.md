@@ -138,7 +138,7 @@ review (two running at once), and the 6-page demo packet took 67 seconds.
 
 ## What is real and what is mocked
 
-Status as of 2:15 PM on the event day, from the code on this branch and today's runs (7 official
+Status as of 1:50 PM on the event day, from the code on this branch and today's runs (7 official
 packets and the demo packet). "Built" means it is in the app but nobody from IHH has used it yet.
 
 | Part | Status |
