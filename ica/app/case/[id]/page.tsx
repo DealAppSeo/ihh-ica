@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { emrNote, hospitalDraft, lvnBrief } from "@/lib/drafts";
+import { DOC_NAME } from "@/lib/patterns";
 
 type Page = { n: number; text: string; type: string; legibility: string; orientation: string; status: string };
 type Evidence = { quote: string; page: number; direction: string; ground: string; reason: string };
@@ -124,6 +125,46 @@ function FindingCard({ f, caseId, check, post }: { f: Finding; caseId: string; c
   );
 }
 
+// The ten required documents at a glance, from the findings already made: no new AI call.
+function PacketMap({ c, r }: { c: Case; r: Review }) {
+  const by = new Map(r.findings.map((f) => [f.rule_id, f]));
+  const pages = (f: Finding) => [...new Set(f.evidence.filter((e) => e.ground === "VERIFIED").map((e) => e.page))].sort((a, b) => a - b);
+  const links = (ps: number[]) => ps.map((p, i) => <span key={p}>{i > 0 && ", "}<a className="text-blue-800 underline" href={`/api/pdf/${c.id}#page=${p}`} target="_blank">p.{p}</a></span>);
+  const missing = (f?: Finding) => f?.state === "not_found" || f?.state === "not_met";
+  const k = Object.keys(DOC_NAME).filter((d) => missing(by.get(d))).length;
+  return (
+    <section className="rounded-lg border p-4 space-y-2">
+      <div className="flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="font-semibold">Packet map · Missing from this packet: {k} of 10 documents</h2>
+        {k > 0 && <a href="#drafts" className="text-sm text-blue-800 underline">Go to the clarification for the hospital ↓</a>}
+      </div>
+      <p className="text-xs text-gray-600">From ICA&apos;s first-pass reading of every page. A person confirms against the original page.</p>
+      <ul className="grid gap-x-6 gap-y-1 text-sm md:grid-cols-2">
+        {Object.entries(DOC_NAME).map(([id, name]) => {
+          const f = by.get(id);
+          const ps = f ? pages(f) : [];
+          const tone = !f ? "" : f.state === "met" ? "text-green-800" : missing(f) ? "text-red-800" : "text-amber-800";
+          return (
+            <li key={id}>
+              <span className="font-mono text-xs">{id}</span> {name}:{" "}
+              <span className={tone}>
+                {!f ? "not checked"
+                  : f.state === "met" ? (ps.length ? <>Found: {links(ps)}</> : "Found (page not confirmed)")
+                  : f.state === "not_found" ? <>Not found in any of the {c.pages.length} pages, as read{ps.length > 0 && <> (related: {links(ps)})</>}</>
+                  : f.state === "not_met" ? <>In the packet, not met: {links(ps)}</>
+                  : f.state === "unreadable" ? <>Unreadable: {links(ps)}</>
+                  : f.state === "cannot_determine" ? "Can't tell from this packet"
+                  : f.state === "conflicting" ? <>Conflicting: {links(ps)}</>
+                  : LABEL[f.state] ?? f.state}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </section>
+  );
+}
+
 // Editable and copyable; ICA never sends it.
 function Draft({ title, text, onSent }: { title: string; text: string; onSent?: () => void }) {
   const ref = useRef<HTMLTextAreaElement>(null);
@@ -215,6 +256,7 @@ export default function CasePage() {
             </p>
           )}
           <p className="text-sm"><span className="font-semibold">Presenting problem:</span> {r.presenting_problem}{!r.referral_form_present && " · No IHH referral form in this packet."}</p>
+          <PacketMap c={c} r={r} />
           <div className="grid gap-4 md:grid-cols-2">
             <section className="rounded-lg border p-4 space-y-2">
               <h2 className="font-semibold">What we know</h2>
@@ -248,7 +290,7 @@ export default function CasePage() {
             </section>
           </div>
 
-          <section className="rounded-lg border p-4 space-y-3">
+          <section id="drafts" className="scroll-mt-4 rounded-lg border p-4 space-y-3">
             <h2 className="font-semibold">Ready to send (you send it; ICA never does)</h2>
             <p className="text-xs text-gray-600">Built only from the findings above, with IHH&apos;s rule wording. No new AI call, so nothing appears here that wasn&apos;t checked. Edit before sending.</p>
             <Draft title="Clarification to the hospital" text={hospitalDraft(c.source.name, r.findings)} onSent={() => post({ type: "draft_marked_sent", value: "hospital" })} />

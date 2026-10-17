@@ -57,6 +57,10 @@ sent automatically.
 
 **The review screen, for one referral:**
 
+- **Packet map.** The ten documents IHH requires, at a glance: each one *Found* with its page
+  number, *not met* with its page, or *not found in any of the N pages, as read*. It leads with
+  "Missing from this packet: K of 10 documents" and a link to the clarification already drafted for
+  the hospital, so the ask can go out as soon as the review is done.
 - **Every page transcribed.** The packets are image-only faxes. Each page is transcribed on its own
   and keeps its page number; unreadable words are marked `[illegible]` or `[?]`. Every page, as
   read, is one click from "Open original page".
@@ -95,7 +99,9 @@ hours as *not met* and no 30-day supply as *not found*. The mobility conflict (a
 to the LVN, with both quotes found on pages 4 and 6. One packet with known answers is a check, not
 an accuracy figure.
 
-*Screenshot: to add (synthetic Maria only).*
+![ICA review of the invented demo packet: the Packet map shows 6 of the 10 required documents missing, with the page of each document found](docs/images/ica-packet-map-maria.png)
+
+*The invented demo packet "Maria" (synthetic data). No official packet is shown here.*
 
 **Demo video:** link to add. The public video uses only the invented demo packet.
 
@@ -166,6 +172,7 @@ packets and the demo packet). "Built" means it is in the app but nobody from IHH
 | Prepare: hospital pre-check (guidance only) | Not built |
 | Docket view | Working: the home page lists each referral as ready for your decision, needs answers, or an exclusion to review |
 | Patterns across the docket | Working: counted live from the official-packet reviews (who they wait on, documents most often missing); not checked by a person, not a trained model |
+| Packet map | Working: built from the review's own findings, with no extra AI call; each required document's page, or "not found in any of the N pages, as read" |
 | Transcription of image-only faxes | Working: every page of 7 official packets (14 to 34 pages) and the demo packet; unreadable words are marked `[illegible]` or `[?]` |
 | Box 1: What's missing | Working, shown under "What needs attention" |
 | Box 2: Needs LVN review (conflicts, clinical calls) | Working: conflicts and clinical calls are owned by the LVN in "Who needs to respond", with a "Question for the LVN" draft |
