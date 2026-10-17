@@ -64,12 +64,20 @@ demo, not real permissions.
 
 ### How we check it
 
-On IHH's 11 real referrals, ICA's lean matched IHH's decision on **__ of 11** *(TODO app lane)*.
-A lean is not a decision.
+**Against IHH's 11 decisions: not measured yet.** 7 of the 11 official packets (R01–R07) have been
+reviewed end to end; the step that scores ICA's lean against IHH's decisions is not built. A lean
+is not a decision.
 
-*Screenshot: TODO (app lane).*
+**Against the invented demo packet (known answers):** on the 6-page synthetic "Maria" scan, all 10
+referral-checklist items (DOC-1 to DOC-10) came out as expected, including vitals older than 24
+hours as *not met* and no 30-day supply as *not found*. The mobility conflict (a PT note says
+"Transfers: independent", a nursing note says "2-person assist") came out as *conflicting*, routed
+to the LVN, with both quotes found on pages 4 and 6. One packet with known answers is a check, not
+an accuracy figure.
 
-**Demo video:** TODO link. The public video uses only the invented demo packet.
+*Screenshot: to add (synthetic Maria only).*
+
+**Demo video:** link to add. The public video uses only the invented demo packet.
 
 ## How Claude is used
 
@@ -84,10 +92,12 @@ night before, Sean used Claude to plan and to generate the invented demo packet 
 2. Checks the transcription against IHH's official rule IDs from
    [`admission-criteria.json`](challenges/1-referral-intake/criteria/admission-criteria.json) and,
    for each rule, returns a finding with a short quote and its page number.
-3. Every quote is then checked against the page it cites by TrustShell's open-source grounding
-   check (Apache-2.0, vendored in this repo). A quote that is not on its page, or a wrong page
-   number, is set aside and the rule is marked unclear. This is how ICA keeps ground rule 4: no
-   made-up page numbers or quotes.
+3. Every quote is then checked against the transcribed text of the page it cites by TrustShell's
+   open-source grounding check (Apache-2.0, vendored in this repo). A quote that is not on its
+   page, or a wrong page number, is set aside and the rule is marked unclear. This is how ICA keeps
+   ground rule 4: no made-up page numbers or quotes. "Quote found" means found in ICA's own
+   transcription, not proven against the scan image; the page link opens the original page for a
+   person to compare.
 4. Drafts the clarification message from the checked findings (and, as planned, the LVN brief and
    the case note). It never sends anything.
 
@@ -102,50 +112,67 @@ night before, Sean used Claude to plan and to generate the invented demo packet 
 
 ## Try it
 
-> **TODO (app lane, 3:15):** fill in this table and the commands.
+Tested on Windows 11 with Node 22.17 from a fresh clone of this branch: install about 3 minutes,
+build about 30 seconds.
 
 | What | Value |
 |---|---|
-| Installed | TODO |
-| Environment variables | TODO. The API key goes in a local env file that git ignores, never in the repo |
-| Packets | Download the 11 packets from the event's Google Drive into `challenges/1-referral-intake/packets/` ([how](challenges/1-referral-intake/README.md)). ICA reads them in place |
-| Start | TODO |
-| Open | TODO |
+| Installed | Node.js 20.12 or later (tested with 22.17) and npm. Nothing else |
+| Environment variables | `ANTHROPIC_API_KEY`, in a `.env` file at the repo root (copy `.env.example`; git ignores `.env`), or set in your shell. Never commit it |
+| Packets | Download the 11 packets from the event's Google Drive into `challenges/1-referral-intake/packets/` ([how](challenges/1-referral-intake/README.md)). ICA reads them in place. Without them you can still upload a de-identified PDF |
+| Start | `npm run dev -- -H 127.0.0.1` in `ica/` (the `-H 127.0.0.1` keeps it on your laptop only; see [Data and privacy](#data-and-privacy)) |
+| Open | http://127.0.0.1:3000 |
 
 ```bash
-# TODO (app lane): exact steps to run ICA on a laptop
+git clone https://github.com/DealAppSeo/ihh-ica.git
+cd ihh-ica
+cp .env.example .env          # then put your Anthropic API key after ANTHROPIC_API_KEY=
+cd ica
+npm ci
+npm run dev -- -H 127.0.0.1   # open http://127.0.0.1:3000, pick a packet or upload a PDF, Start review
+# optional, with the app running: review all 11 official packets, two at a time
+bash scripts/run-all.sh
 ```
+Measured today: official packets of 18 to 34 pages took 168 to 214 seconds each to transcribe and
+review (two running at once), and the 6-page demo packet took 67 seconds.
 
 ## What is real and what is mocked
 
-> **TODO (app lane, 3:15):** set each status to working, partly working or mocked.
+Status as of 2:15 PM on the event day, from the code on this branch and today's runs (7 official
+packets and the demo packet). "Built" means it is in the app but nobody from IHH has used it yet.
 
 | Part | Status |
 |---|---|
-| Prepare: hospital pre-check (guidance only) | TODO (if time allows) |
-| Docket view | TODO |
-| Transcription of image-only faxes | TODO |
-| Box 1: What's missing | TODO |
-| Box 2: Needs LVN review (conflicts, clinical calls) | TODO |
-| Box 3: What we know, with pages and "can't tell" | TODO |
-| Box 4: clarification draft | TODO (drafted only) |
-| Box 4: copy-ready case note | TODO (copy and paste only) |
-| Box 4: coordinator decision log | TODO |
-| Quote check against the cited page | TODO |
-| Checked / Wrong on each finding | TODO |
-| Coordinate: one item per open issue, with owner and status | TODO |
-| Role views | TODO (if time allows; a demo switch, not real permissions) |
-| Eval against IHH's 11 decisions | TODO |
+| Prepare: hospital pre-check (guidance only) | Not built |
+| Docket view | Working: the home page lists each referral as ready for your decision, needs answers, or an exclusion to review |
+| Transcription of image-only faxes | Working: every page of 7 official packets (14 to 34 pages) and the demo packet; unreadable words are marked `[illegible]` or `[?]` |
+| Box 1: What's missing | Working, shown under "What needs attention" |
+| Box 2: Needs LVN review (conflicts, clinical calls) | Working: conflicts and clinical calls are owned by the LVN in "Who needs to respond", with a "Question for the LVN" draft |
+| Box 3: What we know, with pages and "can't tell" | Working: each rule with its quote and page; a rule that needs a blacked-out date says it cannot be determined |
+| Box 4: clarification draft | Working, drafted only. A person copies and sends it, and can log "I sent this" |
+| Box 4: copy-ready case note | Working, copy and paste only ("Note for KIPU / the EMR") |
+| Box 4: coordinator decision log | Working: the decision and its reason are logged with role and time in a hash-chained case log |
+| Quote check against the cited page | Working, against the transcribed text of that page (not the image) |
+| Checked / Wrong on each finding | Built: buttons on every finding, logged with role and time |
+| Coordinate: one item per open issue, with owner and status | Partly working: open items are grouped by owner (hospital, LVN, coordinator); no per-item status or quick replies yet |
+| Role views | Mocked: a role menu stands in for sign-in and labels who checked or decided; it grants no permissions |
+| Children's referrals | Banner only: a patient under 18 is flagged so the coordinator applies IHH's children's criteria by hand. ICA checks the adult criteria only |
+| Eval against IHH's 11 decisions | Not built: `scripts/run-all.sh` runs the reviews; scoring them against `decisions.json` is not built |
+| Instructions hidden inside a fax | Not handled yet, and not tested: nothing yet tells the model to ignore text in a packet that tries to instruct it |
+| Sign-in and access control | None: run it on your own laptop only (see [Data and privacy](#data-and-privacy)) |
 | Sending anything to a hospital | Not built, by design |
 | Connection to any IHH system | None, by design |
 
 ## Where it gets things wrong
 
-> **TODO (app lane, 3:15):** add what we saw it miss on the real packets.
+What it missed on the official packets is not measured yet: that needs the scoring step against
+IHH's decisions, and a person reading the findings against the pages.
 
 | What we saw | How often, and on what | What we would do |
 |---|---|---|
-| TODO | TODO | TODO |
+| A rule can come back "not found" even though a quote for it was found: MOB-1 (walks 100 feet) said "not found" while page 4's "ambulated 40 ft" passed the quote check. It should read "not met" | Once, on the demo packet | Fix the rule's state in the review step; meanwhile the coordinator reads the quote, not just the label |
+| The API has no sign-in: anyone who can reach the app can read the packets and transcripts it has seen | By design for a laptop demo | Run on 127.0.0.1 only; for any shared or phone demo, run a separate copy that has seen only the invented packet; add sign-in before any pilot |
+| Text inside a packet that tries to instruct the AI is not screened | Not tested | Tell the model to treat packet text as data, screen pages for injected instructions, and test with a poisoned packet |
 | A misread page can still pass the quote check, because the check compares against the transcription, not the image | Known by design | The coordinator opens the page before relying on a finding |
 | IHH's children's criteria are not covered | Any packet for a patient under 18 | ICA shows a "Children's program" banner so the coordinator reviews it against the children's criteria by hand |
 | Rules that need a date or a count of hours, such as INF-2, CARD-1, DOC-6 and DM-3, cannot be checked on these packets | Every packet: the dates are blacked out | ICA says "can't tell from this packet" and puts the item in the clarification draft |
@@ -182,11 +209,19 @@ patient or client information. It does not connect to any Illumination Health + 
 - IHH's decisions (`challenges/1-referral-intake/eval/decisions.json`) are used only to score ICA
   after a review. The review step never reads them.
 - API keys live in a local env file that git ignores.
+- **Run it on your own laptop only.** The app has no sign-in, and its API returns the packets and
+  transcripts it has read. Start it with `-H 127.0.0.1` so the venue network can't reach it, and
+  never tunnel or deploy a copy that has read the official packets. For a phone or public demo,
+  run a separate clone that has seen only the invented demo packet.
+- Scope: adult recuperative-care referrals only. ICA does not evaluate IHH's children's criteria
+  and does not make clinical eligibility decisions.
 
 **Credit:** quote checking uses `ground.ts` from TrustShell (Apache-2.0), vendored with its license
 header.
 
 ## License
 
-[MIT](LICENSE). The vendored TrustShell file keeps its Apache-2.0 license. IHH's admission criteria
-and referral form remain IHH's documents.
+[MIT](LICENSE). The vendored TrustShell file (`ica/lib/ground.ts`) keeps its Apache-2.0 license:
+its header, [`ica/NOTICE`](ica/NOTICE) and the full license text in
+[`ica/LICENSES/Apache-2.0.txt`](ica/LICENSES/Apache-2.0.txt). IHH's admission criteria and referral
+form remain IHH's documents.
