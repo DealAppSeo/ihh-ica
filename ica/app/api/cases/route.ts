@@ -1,11 +1,13 @@
 import { connection } from "next/server";
 import { listCases, startCase } from "@/lib/cases";
 import { listPackets } from "@/lib/paths";
+import { patterns } from "@/lib/patterns";
 
 export async function GET() {
   await connection();
-  const cases = listCases().map(({ pages, ...c }) => ({ ...c, pageCount: pages.length }));
-  return Response.json({ packets: listPackets(), cases });
+  const all = listCases();
+  const cases = all.map(({ pages, ...c }) => ({ ...c, pageCount: pages.length }));
+  return Response.json({ packets: listPackets(), cases, patterns: patterns(all) });
 }
 
 // Start a review: JSON {packet: "R05"} for an official packet, or a multipart upload with field "file".

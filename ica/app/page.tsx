@@ -13,6 +13,7 @@ type CaseRow = {
   review?: { readiness: string; findings: { state: string; owner: string }[]; usage: { cost: number } };
   error?: string;
 };
+type Patterns = { n: number; waiting: Record<string, number>; total: number; top: { id: string; name: string; k: number }[] };
 
 const READY: Record<string, [string, string]> = {
   exclusion_to_review: ["Exclusion to review", "bg-red-100 text-red-900"],
@@ -29,6 +30,7 @@ function waitingOn(c: CaseRow) {
 export default function Docket() {
   const [packets, setPackets] = useState<string[]>([]);
   const [cases, setCases] = useState<CaseRow[]>([]);
+  const [pat, setPat] = useState<Patterns | null>(null);
   const [packet, setPacket] = useState("R05");
   const [msg, setMsg] = useState("");
 
@@ -36,6 +38,7 @@ export default function Docket() {
     const r = await fetch("/api/cases").then((r) => r.json());
     setPackets(r.packets);
     setCases(r.cases);
+    setPat(r.patterns);
   }
   useEffect(() => {
     refresh();
@@ -80,6 +83,23 @@ export default function Docket() {
         {packets.length === 0 && <p className="text-sm text-amber-700">No packets found in challenges/1-referral-intake/packets.</p>}
         {msg && <p className="text-sm text-red-700">{msg}</p>}
       </section>
+
+      {pat && pat.n > 0 && (
+        <section className="rounded border-2 border-blue-200 p-4 space-y-2">
+          <h2 className="font-semibold">Patterns across the docket</h2>
+          <p className="text-xs text-gray-600">Counted from ICA&apos;s first-pass reviews of {pat.n} referral{pat.n === 1 ? "" : "s"}. Not checked by a person. Not a trained model.</p>
+          <p className="text-sm">
+            <span className="font-semibold">Waiting on:</span> hospital {pat.waiting.hospital} · LVN {pat.waiting.lvn} · coordinator {pat.waiting.coordinator}
+            <span className="text-gray-600"> of {pat.total} open items{pat.waiting.none ? ` (${pat.waiting.none} with no owner)` : ""}; dates that were blacked out are left out</span>
+          </p>
+          <div className="text-sm">
+            <span className="font-semibold">Most often not in the packet:</span>
+            <ul className="list-disc pl-5">{pat.top.map((g) => <li key={g.id}>{g.name}: {g.k} of {pat.n} <span className="font-mono text-xs">({g.id})</span></li>)}</ul>
+          </div>
+          <p className="text-sm font-semibold">Ask the hospital for these up front. Nothing is sent automatically.</p>
+          <p className="text-xs text-gray-600">Items marked &quot;if needed&quot; may not apply to every referral.</p>
+        </section>
+      )}
 
       <section className="space-y-2">
         <h2 className="font-semibold">Docket</h2>
