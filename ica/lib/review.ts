@@ -28,6 +28,7 @@ const Evidence = z.object({
 const ReviewSchema = z.object({
   presenting_problem: z.string(),
   referral_form_present: z.boolean(),
+  under_18: z.boolean(), // IHH's children's criteria apply; this prototype checks the adult rules only
   triggered: z.array(z.object({ section: z.string(), why: z.string(), evidence: z.array(Evidence) })),
   findings: z.array(
     z.object({
@@ -50,6 +51,7 @@ export type Finding = Omit<z.infer<typeof ReviewSchema>["findings"][number], "ev
 export type Review = {
   presenting_problem: string;
   referral_form_present: boolean;
+  under_18: boolean;
   triggered: { section: string; why: string }[];
   findings: Finding[];
   vetoes: number;
@@ -91,7 +93,7 @@ Evidence: every quote must be copied character for character from ONE page of th
 
 Owner and question, for anything not met: hospital (a document or fact the hospital must send or confirm), lvn (conflicts and clinical judgment), coordinator (program fit, case-by-case, IHH-side arrangements), none (met, or nothing anyone can do, e.g. redacted). Write one specific, polite question for the owner. Group nothing; one finding per rule.
 
-presenting_problem: one plain sentence from the chart. referral_form_present: whether IHH's referral form is in the packet.`;
+presenting_problem: one plain sentence from the chart. referral_form_present: whether IHH's referral form is in the packet. under_18: true only if the chart shows the patient is under 18 (children's program criteria would apply instead).`;
 
 export async function review(pages: Page[]): Promise<Review> {
   const packet = pages
@@ -152,6 +154,7 @@ export async function review(pages: Page[]): Promise<Review> {
   return {
     presenting_problem: r.presenting_problem,
     referral_form_present: r.referral_form_present,
+    under_18: r.under_18,
     triggered: r.triggered.map(({ section, why }) => ({ section, why })),
     findings,
     vetoes,

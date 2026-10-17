@@ -2,14 +2,17 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { emrNote, hospitalDraft, lvnBrief } from "@/lib/drafts";
 
 type Page = { n: number; text: string; type: string; legibility: string; orientation: string; status: string };
 type Evidence = { quote: string; page: number; direction: string; ground: string; reason: string };
-type Finding = { rule_id: string; state: string; summary: string; evidence: Evidence[]; owner: string; question: string | null; note?: string; exclusion?: boolean };
+type Finding = { rule_id: string; rule_text: string | null; state: string; summary: string; evidence: Evidence[]; owner: string; question: string | null; note?: string; exclusion?: boolean };
+type Ev = { at: string; role: string; type: string; rule_id?: string; value: string; detail?: string; hash: string };
 type Review = {
   presenting_problem: string;
   referral_form_present: boolean;
+  under_18: boolean;
   triggered: { section: string; why: string }[];
   findings: Finding[];
   vetoes: number;
@@ -26,6 +29,8 @@ type Case = {
   review?: Review;
   timings: { transcribe_s?: number; review_s?: number; seconds?: number };
   error?: string;
+  events?: Ev[];
+  chain_ok: boolean;
 };
 
 const LABEL: Record<string, string> = {
@@ -47,6 +52,8 @@ const TONE: Record<string, string> = {
 };
 const ATTENTION_ORDER = ["not_met", "conflicting", "not_found", "unreadable", "clinical_review", "conditional_unconfirmed", "cannot_determine"];
 const OWNER: Record<string, string> = { hospital: "Hospital", lvn: "LVN", coordinator: "Coordinator" };
+const ROLE: Record<string, string> = { coordinator: "Coordinator", lvn: "LVN", hospital: "Hospital", house_manager: "House manager" };
+const time = (iso: string) => new Date(iso).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
 const READY: Record<string, [string, string]> = {
   exclusion_to_review: ["An exclusion needs review before any decision", "bg-red-100 text-red-900"],
   needs_attention: ["Needs answers before a decision", "bg-amber-100 text-amber-900"],
@@ -86,11 +93,13 @@ function EvidenceLine({ e, caseId }: { e: Evidence; caseId: string }) {
   );
 }
 
-function FindingCard({ f, caseId }: { f: Finding; caseId: string }) {
+type Post = (ev: { type: string; value: string; rule_id?: string; detail?: string }) => void;
+
+function FindingCard({ f, caseId, check, post }: { f: Finding; caseId: string; check?: Ev; post: Post }) {
   return (
     <li className="rounded border p-3 space-y-1">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-xs">{f.rule_id}</span>
+        <span className="font-mono text-xs" title={f.rule_text ?? undefined}>{f.rule_id}</span>
         {f.state === "not_met" ? (
           <span className="rounded bg-red-100 px-2 py-0.5 text-xs font-medium text-red-900">{f.exclusion ? "Exclusion applies" : "Requirement not met"}</span>
         ) : (
@@ -102,13 +111,42 @@ function FindingCard({ f, caseId }: { f: Finding; caseId: string }) {
       {f.evidence.length > 0 && <ul className="space-y-1">{f.evidence.map((e, i) => <EvidenceLine key={i} e={e} caseId={caseId} />)}</ul>}
       {f.question && f.state !== "met" && <p className="text-sm text-gray-700">Ask: {f.question}</p>}
       {f.note && <p className="text-xs text-red-800">{f.note}</p>}
+      <div className="flex flex-wrap items-center gap-2 pt-1 text-xs">
+        <button className="rounded border px-2" onClick={() => post({ type: "check", rule_id: f.rule_id, value: "checked" })}>✓ Checked</button>
+        <button className="rounded border px-2" onClick={() => post({ type: "check", rule_id: f.rule_id, value: "wrong" })}>✗ Wrong</button>
+        {check && (
+          <span className={check.value === "checked" ? "text-green-800" : "text-red-800"}>
+            {check.value === "checked" ? "Checked" : "Marked wrong"} by {ROLE[check.role]} at {time(check.at)}
+          </span>
+        )}
+      </div>
     </li>
+  );
+}
+
+// Editable and copyable; ICA never sends it.
+function Draft({ title, text, onSent }: { title: string; text: string; onSent?: () => void }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  const [copied, setCopied] = useState(false);
+  if (!text) return null;
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <h3 className="text-sm font-semibold">{title}</h3>
+        <button className="rounded border px-2 text-xs" onClick={async () => { await navigator.clipboard.writeText(ref.current?.value ?? text); setCopied(true); }}>{copied ? "Copied" : "Copy"}</button>
+        {onSent && <button className="rounded border px-2 text-xs" onClick={onSent}>I sent this</button>}
+      </div>
+      <textarea key={text} ref={ref} defaultValue={text} rows={Math.min(14, text.split("\n").length + 1)} className="w-full rounded border p-2 font-mono text-xs" />
+    </div>
   );
 }
 
 export default function CasePage() {
   const { id } = useParams<{ id: string }>();
   const [c, setC] = useState<Case | null>(null);
+  const [role, setRole] = useState("coordinator");
+  const [choice, setChoice] = useState("");
+  const [reason, setReason] = useState("");
 
   async function load() {
     const r = await fetch(`/api/cases/${id}`);
@@ -120,6 +158,12 @@ export default function CasePage() {
     return () => clearInterval(t);
   }, [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const post: Post = async (ev) => {
+    const res = await fetch(`/api/cases/${id}/events`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ role, ...ev }) });
+    if (!res.ok) return alert((await res.json()).error);
+    load();
+  };
+
   if (!c) return <main className="p-6">Loading…</main>;
   const r = c.review;
   const attention = (r?.findings ?? [])
@@ -129,6 +173,10 @@ export default function CasePage() {
   const privacy = (r?.findings ?? []).filter((f) => f.state === "redacted");
   const byOwner = ["hospital", "lvn", "coordinator"].map((o) => [o, attention.filter((f) => f.owner === o)] as const).filter(([, l]) => l.length);
   const cost = (c.usage?.cost ?? 0) + (r?.usage.cost ?? 0);
+  const events = c.events ?? [];
+  const lastCheck = (rule: string) => events.findLast((e) => e.type === "check" && e.rule_id === rule);
+  const decision = events.findLast((e) => e.type === "decision");
+  const card = (f: Finding) => <FindingCard key={f.rule_id} f={f} caseId={c.id} check={lastCheck(f.rule_id)} post={post} />;
 
   return (
     <main className="mx-auto max-w-5xl p-6 space-y-4">
@@ -137,6 +185,14 @@ export default function CasePage() {
         <h1 className="text-2xl font-bold">Referral {c.source.name}</h1>
         {r && <span className={`rounded px-3 py-1 text-sm font-semibold ${READY[r.readiness][1]}`}>{READY[r.readiness][0]}</span>}
       </div>
+      <label className="block text-xs text-gray-600">
+        Acting as{" "}
+        <select value={role} onChange={(e) => setRole(e.target.value)} className="rounded border px-1">
+          <option value="coordinator">Coordinator</option>
+          <option value="lvn">LVN</option>
+        </select>{" "}
+        (demo: stands in for sign-in; every check and decision is logged under this role)
+      </label>
       <p className="text-sm text-gray-700">
         {c.status === "transcribing" && `Reading page ${c.progress.done} of ${c.progress.total || "…"}…`}
         {c.status === "reviewing" && "Checking against IHH's criteria…"}
@@ -153,18 +209,23 @@ export default function CasePage() {
 
       {r && (
         <>
+          {r.under_18 && (
+            <p className="rounded border-2 border-purple-400 bg-purple-50 p-3 text-sm">
+              <span className="font-semibold">The chart shows a patient under 18.</span> IHH&apos;s Children&apos;s and Family Recuperative Care criteria apply: a nurse pre-screens the family and child at the hospital, and adults accompanying the child get background checks. This review used the adult criteria only. Route to the children&apos;s program.
+            </p>
+          )}
           <p className="text-sm"><span className="font-semibold">Presenting problem:</span> {r.presenting_problem}{!r.referral_form_present && " · No IHH referral form in this packet."}</p>
           <div className="grid gap-4 md:grid-cols-2">
             <section className="rounded-lg border p-4 space-y-2">
               <h2 className="font-semibold">What we know</h2>
               <p className="text-xs text-gray-600">Met, with a quote checked against its page. Open the page to confirm.</p>
-              <ul className="space-y-2">{known.map((f) => <FindingCard key={f.rule_id} f={f} caseId={c.id} />)}</ul>
+              <ul className="space-y-2">{known.map(card)}</ul>
               {r.triggered.length > 0 && <p className="text-xs text-gray-700">Condition rules checked: {r.triggered.map((t) => t.section).join(", ")}.</p>}
               {privacy.length > 0 && <p className="text-xs text-gray-600">Removed for privacy (not missing): {privacy.map((f) => f.rule_id).join(", ")}.</p>}
             </section>
             <section className="rounded-lg border-2 border-amber-300 p-4 space-y-2">
               <h2 className="font-semibold">What needs attention ({attention.length})</h2>
-              <ul className="space-y-2">{attention.map((f) => <FindingCard key={f.rule_id} f={f} caseId={c.id} />)}</ul>
+              <ul className="space-y-2">{attention.map(card)}</ul>
               {attention.length === 0 && <p className="text-sm">Nothing open.</p>}
             </section>
             <section className="rounded-lg border p-4 space-y-2">
@@ -186,7 +247,50 @@ export default function CasePage() {
               </ol>
             </section>
           </div>
+
+          <section className="rounded-lg border p-4 space-y-3">
+            <h2 className="font-semibold">Ready to send (you send it; ICA never does)</h2>
+            <p className="text-xs text-gray-600">Built only from the findings above, with IHH&apos;s rule wording. No new AI call, so nothing appears here that wasn&apos;t checked. Edit before sending.</p>
+            <Draft title="Clarification to the hospital" text={hospitalDraft(c.source.name, r.findings)} onSent={() => post({ type: "draft_marked_sent", value: "hospital" })} />
+            <Draft title="Question for the LVN" text={lvnBrief(c.source.name, r.findings)} onSent={() => post({ type: "draft_marked_sent", value: "lvn" })} />
+            <Draft title="Note for KIPU / the EMR (copy and paste)" text={emrNote(c.source.name, r.presenting_problem, r.readiness, r.findings, decision && { ...decision, role: ROLE[decision.role], at: new Date(decision.at).toLocaleString() })} />
+          </section>
+
+          <section className="rounded-lg border p-4 space-y-2">
+            <h2 className="font-semibold">Your decision</h2>
+            {decision && (
+              <p className="text-sm">Recorded: <span className="font-semibold">{decision.value.replace("_", " ")}</span> by {ROLE[decision.role]} at {time(decision.at)}. Reason: {decision.detail}</p>
+            )}
+            <div className="flex flex-wrap gap-2 text-sm">
+              {[["accept", "Accept"], ["request_info", "Request info"], ["decline", "Decline"]].map(([v, l]) => (
+                <button key={v} className={`rounded border px-3 py-1 ${choice === v ? "bg-gray-900 text-white" : ""}`} onClick={() => setChoice(v)}>{l}</button>
+              ))}
+            </div>
+            <textarea value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (required)" rows={2} className="w-full rounded border p-2 text-sm" />
+            <button
+              className="rounded bg-gray-900 px-3 py-1 text-sm text-white disabled:opacity-40"
+              disabled={!choice || !reason.trim()}
+              onClick={async () => { await post({ type: "decision", value: choice, detail: reason }); setChoice(""); setReason(""); }}
+            >
+              Record decision
+            </button>
+          </section>
         </>
+      )}
+
+      {events.length > 0 && (
+        <details className="rounded border p-3" open>
+          <summary className="cursor-pointer font-semibold">
+            Case log ({events.length}) · <span className={c.chain_ok ? "text-green-800" : "text-red-800"}>{c.chain_ok ? "unchanged since written (hash chain checks out)" : "edited after writing: hash chain broken"}</span>
+          </summary>
+          <ol className="mt-2 space-y-1 text-xs">
+            {events.map((e) => (
+              <li key={e.hash}>
+                {time(e.at)} · {ROLE[e.role]} · {e.type.replaceAll("_", " ")}{e.rule_id && ` ${e.rule_id}`}: {e.value.replace("_", " ")}{e.detail && ` (${e.detail})`} <span className="font-mono text-gray-500">{e.hash.slice(0, 8)}</span>
+              </li>
+            ))}
+          </ol>
+        </details>
       )}
 
       <details className="rounded border p-3">
