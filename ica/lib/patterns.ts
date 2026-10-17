@@ -4,7 +4,7 @@ import type { Case } from "./cases";
 const WAITING = ["not_found", "not_met", "conflicting", "unreadable"]; // cannot_determine left out: mostly blacked-out dates
 export const DOC_NAME: Record<string, string> = {
   "DOC-1": "IHH referral form",
-  "DOC-2": "Demographics page",
+  "DOC-2": "Demographics / face sheet",
   "DOC-3": "CalOptima / LOA authorization",
   "DOC-4": "H&P",
   "DOC-5": "Progress notes (if needed)",
