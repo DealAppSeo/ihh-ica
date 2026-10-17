@@ -1,8 +1,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import path from "node:path";
 
-// The key lives in the repo-root .env (git-ignored). Next only reads env files from ica/, so load it here.
-if (!process.env.ANTHROPIC_API_KEY) {
+// The key lives in the repo-root .env (git-ignored). Next only reads env files from ica/, so load it on first use.
+function loadKey() {
+  if (process.env.ANTHROPIC_API_KEY) return;
   try {
     process.loadEnvFile(path.join(process.cwd(), "..", ".env"));
   } catch {
@@ -16,6 +17,7 @@ export const PRICE = { input: 4, output: 20 };
 
 let client: Anthropic | null = null;
 export function claude() {
+  loadKey();
   client ??= new Anthropic({ maxRetries: 4 });
   return client;
 }
