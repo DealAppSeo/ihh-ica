@@ -18,55 +18,75 @@ hours; the fact that decides it is often deep in the chart, and anything not in 
 unknown, not normal. What IHH asked for, in their words: "quick answers to what's missing in a
 file", faster correct decisions, and a quicker way through the referral docket.
 
+**Where it gets stuck.** IHH told us the bottleneck is waiting on hospital case managers. ICA's
+first pass on IHH's 7 de-identified packets agrees: 125 of the 150 open questions it raised could
+only be answered by the hospital (19 by the LVN, 3 by the coordinator). That count is ICA's, not
+checked by a person. So ICA asks the hospital for all of them at once.
+
 ## What we built
 
-> Items marked *planned* are being built today, and items marked *if time allows* may not make it.
-> The app lane confirms or cuts each one at 3:15.
+ICA turns a faxed referral into one screen a coordinator can act on in about three minutes, and
+leaves every decision with the coordinator.
 
-ICA does three jobs.
+```mermaid
+flowchart TD
+    A["Hospital faxes a 15 to 35 page referral"] --> B["ICA transcribes every page and keeps its page number"]
+    B --> C["Claude checks the pages against IHH's admission rule IDs"]
+    C --> D{"Is each quote on the page it cites?"}
+    D -- "no" --> E["Set aside: that rule is marked unclear"]
+    D -- "yes" --> F["Review screen for one referral"]
+    E --> F
+    F --> G["What needs attention: missing, conflicting, can't tell"]
+    F --> H["What we know: a quote and a page link for each rule"]
+    F --> I["Who needs to respond: hospital, LVN or coordinator"]
+    I --> J["Drafts: one clarification to the hospital, a question for the LVN, a note for KIPU"]
+    J --> K["A person copies and sends it. ICA cannot send"]
+    F --> L["The coordinator checks findings and records the decision with a reason"]
+    L --> M[("Hash-chained case log")]
+    M --> N["Docket: every referral's status, and patterns across referrals"]
+```
 
-### 1. Prepare *(if time allows)*
+**The docket.** Every referral in one queue, marked *Ready for your decision*, *Needs answers
+before a decision*, or *An exclusion needs review before any decision*. Start a review from an
+official packet or upload a de-identified PDF.
 
-A pre-check a hospital can run before it sends a referral. It gives referral preparation guidance:
-what IHH will look for and what the packet seems to lack. It never says "eligible".
+**Patterns across the docket.** Counted from ICA's reviews: who the open questions are waiting on,
+and the documents most often not in the packet, so the coordinator can ask hospitals for them up
+front. It says on screen that it is not checked by a person and not a trained model. Nothing is
+sent automatically.
 
-### 2. Resolve
+**The review screen, for one referral:**
 
-An unknown fax becomes what's missing and what needs the LVN, with pages.
-
-- **The docket** *(planned)*. A queue of referral packets, each marked ready for decision, missing
-  items, or needs LVN.
 - **Every page transcribed.** The packets are image-only faxes. Each page is transcribed on its own
-  and keeps its page number.
-- **One review screen, four boxes, in this order** *(planned layout)*:
-  1. **What's missing.** What the packet lacks, each item tied to IHH's rule ID. Not in the packet
-     means unknown, not normal.
-  2. **Needs LVN review.** Today, conflicts go to a busy LVN by email or fax. This box puts every
-     conflict (the form says one thing, a note deep in the chart says another) and every
-     clinical-judgment item into one short brief, each with its quote and page. ICA doesn't pick a
-     side.
-  3. **What we know (with pages).** For each of IHH's rule IDs, what ICA found, the quote, and the
-     page. Click the page number to open the page. Dates are blacked out in these packets, so any
-     rule that needs a date or a count of hours says "can't tell from this packet".
-  4. **Next action.** One clarification draft to the hospital, each item tied to IHH's rule ID; a
-     copy-ready note *(planned)* to paste into IHH's case-management system or EMR; and the
-     coordinator's decision with the reason, logged. ICA drafts and offers a lean, labeled as a
-     lean. It has no way to send anything, and it never decides.
-- **Checked / Wrong on every finding** *(planned)*. A person confirms each finding against its
-  page or marks it wrong, and corrections are logged.
+  and keeps its page number; unreadable words are marked `[illegible]` or `[?]`. Every page, as
+  read, is one click from "Open original page".
+- **What needs attention.** Missing items, conflicts, unreadable pages and anything ICA can't tell,
+  each tied to IHH's rule ID. Not in the packet means unknown, not normal. Dates are blacked out in
+  these packets, so a rule that needs a date says it cannot be determined.
+- **What we know.** For each rule, what ICA found, a short quote and its page number, which opens
+  the original page.
+- **Who needs to respond.** Open items grouped by who can answer them: the hospital, the LVN
+  (conflicts and clinical calls; ICA doesn't pick a side), or the coordinator.
+- **Ready to send (you send it; ICA never does).** One *Clarification to the hospital* covering
+  every open item, a *Question for the LVN*, and a *Note for KIPU / the EMR* to copy and paste.
+  "I sent this" logs that a person sent it.
+- **Checked / Wrong on every finding**, logged with the role and the time.
+- **Your decision.** Accept, Request info or Decline, with a reason, logged in a hash-chained case
+  log. The status at the top is ICA's readiness view, not a decision.
+- **Children's referrals.** A patient under 18 gets a banner: IHH's children's criteria apply, and a
+  person checks them. ICA checks the adult criteria only.
+- **A role menu** (coordinator, LVN, hospital) stands in for sign-in, so every check and decision is
+  labeled with a role. It grants no permissions.
 
-### 3. Coordinate *(planned)*
-
-Every unresolved issue becomes one structured item, not a chat thread: its rule ID, its evidence
-pages, one specific question, the role that owns it (hospital, LVN or coordinator), a status, and
-quick replies. Role views *(if time allows)* show each role its own items. Switching roles is a
-demo, not real permissions.
+**Not built today:** the hospital pre-check ("Prepare"), a status and quick replies on each open
+item, and scoring against IHH's 11 decisions. See
+[What is real and what is mocked](#what-is-real-and-what-is-mocked).
 
 ### How we check it
 
 **Against IHH's 11 decisions: not measured yet.** 7 of the 11 official packets (R01–R07) have been
-reviewed end to end; the step that scores ICA's lean against IHH's decisions is not built. A lean
-is not a decision.
+reviewed end to end; the step that scores ICA's readiness view against IHH's decisions is not
+built. A readiness view is not a decision.
 
 **Against the invented demo packet (known answers):** on the 6-page synthetic "Maria" scan, all 10
 referral-checklist items (DOC-1 to DOC-10) came out as expected, including vitals older than 24
@@ -98,12 +118,12 @@ night before, Sean used Claude to plan and to generate the invented demo packet 
    ground rule 4: no made-up page numbers or quotes. "Quote found" means found in ICA's own
    transcription, not proven against the scan image; the page link opens the original page for a
    person to compare.
-4. Drafts the clarification message from the checked findings (and, as planned, the LVN brief and
-   the case note). It never sends anything.
+4. Drafts, from the checked findings, the clarification to the hospital, the question for the LVN
+   and the note for KIPU or the EMR. It never sends anything.
 
 **What a person checks:**
 
-- Each finding, with Checked or Wrong *(planned)*. The grounding check compares a quote with the
+- Each finding, with Checked or Wrong. The grounding check compares a quote with the
   transcription, not the image, so the coordinator opens the page to confirm.
 - Every conflict. It stays open until a person resolves it.
 - Every clinical judgment, such as medical stability or orientation. ICA shows the evidence; the
@@ -145,6 +165,7 @@ packets and the demo packet). "Built" means it is in the app but nobody from IHH
 |---|---|
 | Prepare: hospital pre-check (guidance only) | Not built |
 | Docket view | Working: the home page lists each referral as ready for your decision, needs answers, or an exclusion to review |
+| Patterns across the docket | Working: counted live from the official-packet reviews (who they wait on, documents most often missing); not checked by a person, not a trained model |
 | Transcription of image-only faxes | Working: every page of 7 official packets (14 to 34 pages) and the demo packet; unreadable words are marked `[illegible]` or `[?]` |
 | Box 1: What's missing | Working, shown under "What needs attention" |
 | Box 2: Needs LVN review (conflicts, clinical calls) | Working: conflicts and clinical calls are owned by the LVN in "Who needs to respond", with a "Question for the LVN" draft |
