@@ -10,8 +10,21 @@ type CaseRow = {
   progress: { done: number; total: number };
   timings: { started: string; seconds?: number };
   usage?: { cost: number };
+  review?: { readiness: string; findings: { state: string; owner: string }[]; usage: { cost: number } };
   error?: string;
 };
+
+const READY: Record<string, [string, string]> = {
+  exclusion_to_review: ["Exclusion to review", "bg-red-100 text-red-900"],
+  needs_attention: ["Needs answers", "bg-amber-100 text-amber-900"],
+  ready_for_decision: ["Ready for your decision", "bg-green-100 text-green-900"],
+};
+const OPEN = ["not_met", "conflicting", "not_found", "unreadable", "clinical_review", "conditional_unconfirmed", "cannot_determine"];
+function waitingOn(c: CaseRow) {
+  const f = (c.review?.findings ?? []).filter((x) => OPEN.includes(x.state) && x.owner !== "none");
+  const n = (o: string) => f.filter((x) => x.owner === o).length;
+  return [["Hospital", n("hospital")], ["LVN", n("lvn")], ["Coordinator", n("coordinator")]].filter(([, k]) => k).map(([o, k]) => `${o} ${k}`).join(" · ");
+}
 
 export default function Docket() {
   const [packets, setPackets] = useState<string[]>([]);
@@ -76,11 +89,16 @@ export default function Docket() {
             <li key={c.id} className="flex items-center justify-between gap-4 p-3">
               <Link href={`/case/${c.id}`} className="font-medium text-blue-800 underline">{c.source.name}</Link>
               <span className="text-sm">
-                {c.status === "transcribing" ? `Reading page ${c.progress.done} of ${c.progress.total || "…"}` : c.status}
+                {c.status === "transcribing" ? `Reading page ${c.progress.done} of ${c.progress.total || "…"}`
+                  : c.status === "reviewing" ? "Checking against IHH's criteria…"
+                  : c.review ? <span className={`rounded px-2 py-0.5 ${READY[c.review.readiness][1]}`}>{READY[c.review.readiness][0]}</span>
+                  : c.status}
+                {c.review && <span className="ml-2 text-xs text-gray-700">waiting on: {waitingOn(c) || "no one"}</span>}
                 {c.error && <span className="text-red-700"> · {c.error}</span>}
               </span>
               <span className="text-xs tabular-nums text-gray-600">
-                {c.timings.seconds != null && `${c.timings.seconds}s`}{c.usage && ` · $${c.usage.cost.toFixed(2)}`}
+                {c.timings.seconds != null && `${c.timings.seconds}s`}
+                {(c.usage || c.review) && ` · $${((c.usage?.cost ?? 0) + (c.review?.usage.cost ?? 0)).toFixed(2)}`}
               </span>
             </li>
           ))}
