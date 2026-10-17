@@ -27,3 +27,6 @@ challenges/1-referral-intake/packets/*
 !challenges/1-referral-intake/packets/README.md
 *.zip
 **/R[0-9][0-9].pdf
+
+# ICA: case files hold transcripts derived from the de-identified packets. Never commit.
+ica/data/
